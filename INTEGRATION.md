@@ -120,10 +120,25 @@ print(result.to_dict())
 - ❌ `sotda/optimizer.py` — autoresearch 루프는 **선택 기능**. 필요 없으면 무시
 - ❌ `sotda/evaluator.py`의 `TEST_BATTERY` — 내부 검증용. 건드리지 말 것
 
-**당신이 쓸 것만 3개:**
+**쓸 수 있는 API 두 가지:**
+
+**(A) Pipeline 래퍼** (빠른 시작, 한 줄 호출):
 - `PostStats` (input)
 - `TopicContext` (input)
-- `ExplosionScoringPipeline` (→ `ScoringResult` output)
+- `ExplosionScoringPipeline` → `ScoringResult`
+
+**(B) 개별 수식 26개** (pick-and-mix, 자유 조합):
+```python
+from sotda import formulas as f
+
+# 쓰고 싶은 것만 꺼내 씀
+er = f.engagement_rate(likes=420, replies=55, views=12500)
+rp = f.repost_rate(reposts=110, views=12500)
+mz = f.modified_z(current_views, baseline_views_list)
+health = f.account_health_score(er_norm, consistency_norm, ...)
+high_thr, low_thr = f.media_type_branch("VIDEO")
+```
+전체 목록은 `sotda.formulas.__all__` 또는 `docs/FORMULA_MASTER.md` 참고.
 
 ---
 

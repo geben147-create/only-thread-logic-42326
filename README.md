@@ -9,23 +9,50 @@
 
 ## 무엇을 하나
 
-Threads 게시물 하나의 **"폭발 정도"**를 숫자로 판단합니다:
+두 레이어의 API를 제공합니다:
+
+### Layer 1 — 개별 수식 26개 (pick-and-mix)
+
+당신 프로그램에 필요한 것만 골라 씁니다:
+
+```python
+from sotda import formulas as f
+
+# 🔵 Threads 전용
+f.repost_rate(reposts=110, views=12500)       # 0.0088
+f.quote_rate(quotes=30, views=12500)          # 0.0024
+f.viral_velocity_24h(reposts=110, hours_since_post=12)  # 9.17 reposts/h
+f.reply_ratio(replies=55, views=12500)        # 0.0044
+f.share_rate(shares=18, views=12500)          # 0.00144
+f.quote_to_reply_ratio(quotes=30, replies=55) # 0.545
+f.threads_satisfaction(0.05, 0.03, 0.02, 0.01) # 100.0 (완벽 게시물)
+f.media_type_branch("VIDEO")                  # (220.0, 80.0)
+f.link_attachment_penalty("https://...")      # 0.7
+
+# 🟢 공통 (YouTube와 동일)
+f.engagement_rate(likes=420, replies=55, views=12500)  # 0.038
+f.like_ratio(420, 12500)                      # 0.0336
+f.modified_z(1_000_000, baseline_views)       # 6737.7 (viral outlier)
+f.alert_level(z_score=5.5)                    # "viral"
+f.account_momentum(200_000, 100_000, 1500, 1000)  # 3.0x
+f.outlier_ratio(50_000, 10_000)               # 5.0x
+f.audience_credibility(0.06)                  # "REAL"
+# ... 총 26개 (17 공통 + 9 Threads 전용)
+```
+
+### Layer 2 — 조합된 3-Phase 파이프라인 (권장 시작점)
+
+개별 수식들이 미리 조합된 버전:
 
 ```python
 from sotda import ExplosionScoringPipeline, PostStats, TopicContext
 
 pipeline = ExplosionScoringPipeline()
-
 result = pipeline.score(
-    PostStats(
-        post_id="17841400000000000_9876543",
-        current_vph=500,       # views / hours_since_post
-        author_avg_vph=120,    # 최근 N일간 이 계정 VPH 평균
-        author_std_vph=45,
-    ),
+    PostStats(post_id="threads_42", current_vph=500,
+              author_avg_vph=120, author_std_vph=45),
     TopicContext(topic="#ai", saturation_index=0.8),
 )
-
 print(result.to_dict())
 # {'post_burst_score': 8.44, 'red_ocean_multiplier': 1.4,
 #  'final_score': 590.8, 'usability_flag': 'HIGH', 'corrections_applied': []}
