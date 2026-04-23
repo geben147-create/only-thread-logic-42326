@@ -1,0 +1,27 @@
+{
+  "name": "sotda-threads",
+  "version": "0.3.0",
+  "description": "SOTDA Threads — Meta Threads Graph API scoring. 26 formulas. TypeScript port.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/formulas.js",
+  "types": "dist/formulas.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/formulas.d.ts",
+      "import": "./dist/formulas.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "verify:golden": "node --experimental-strip-types test/verify_golden.mjs"
+  },
+  "keywords": ["threads", "meta-api", "scoring", "explosion-detection", "sotda"],
+  "devDependencies": { "typescript": "^5.5.0" },
+  "engines": { "node": ">=22" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geben147-create/only-thread-logic-42326.git"
+  }
+}
