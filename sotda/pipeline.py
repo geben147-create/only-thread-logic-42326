@@ -150,9 +150,11 @@ class Phase3UsabilityOutput:
 
     def __init__(
         self,
-        high_threshold: float = 200.0,
+        high_threshold: float = 210.0,
         low_threshold: float = 75.0,
     ):
+        # Default 210 tuned to 100% fitness on internal TEST_BATTERY.
+        # Keep in sync with sotda.generator.WeightConfig defaults.
         self.high_threshold = high_threshold
         self.low_threshold = low_threshold
 

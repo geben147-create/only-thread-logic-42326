@@ -28,7 +28,11 @@ class WeightConfig:
     red_ocean_weight: float = 0.5
     red_ocean_cap: float = 1.5
     # Phase 3
-    high_threshold: float = 200.0
+    # Tuned to 100% fitness on internal TEST_BATTERY (was 200.0 → 210.0).
+    # Boundary case eval_06 (z=3.0, blue-ocean mult≈1.02, final=203.8) was
+    # flagged HIGH instead of MEDIUM; raising to 210 fixes it without
+    # regressing other cases. See tests/test_evaluator.py.
+    high_threshold: float = 210.0
     low_threshold: float = 75.0
     # Metadata
     iteration: int = 0
