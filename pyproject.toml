@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sotda-threads"
+version = "0.1.0"
+description = "SOTDA v5.0 — Threads Graph API post explosion scoring (26 formulas, 3-phase pipeline, LLM-driven weight tuning)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "geben147-create" }]
+keywords = ["threads", "meta", "scoring", "explosion-detection", "viral-detection", "autoresearch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[project.scripts]
+sotda-optimize = "sotda.optimizer:main"
+
+[project.urls]
+Repository = "https://github.com/geben147-create/only-thread-logic-42326"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sotda*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
