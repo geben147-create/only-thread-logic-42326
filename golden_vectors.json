@@ -1,0 +1,358 @@
+{
+  "spec_version": "0.3.0",
+  "platform": "threads",
+  "package": "sotda",
+  "tolerance": 1e-09,
+  "vectors": [
+    {
+      "formula": "modified_z",
+      "input": {
+        "x": 1000000,
+        "values": [
+          1000,
+          1200,
+          800,
+          1500,
+          900,
+          1100,
+          1300,
+          1000000
+        ]
+      },
+      "expected": 3368.6216249999998
+    },
+    {
+      "formula": "modified_z_empty",
+      "input": {
+        "x": 100,
+        "values": []
+      },
+      "expected": 0.0
+    },
+    {
+      "formula": "alert_level_viral",
+      "input": {
+        "z_score": 5.5
+      },
+      "expected": "viral"
+    },
+    {
+      "formula": "alert_level_surge",
+      "input": {
+        "z_score": 4.0
+      },
+      "expected": "surge"
+    },
+    {
+      "formula": "alert_level_trending",
+      "input": {
+        "z_score": 3.2
+      },
+      "expected": "trending"
+    },
+    {
+      "formula": "alert_level_watch",
+      "input": {
+        "z_score": 2.5
+      },
+      "expected": "watch"
+    },
+    {
+      "formula": "alert_level_none",
+      "input": {
+        "z_score": 1.0
+      },
+      "expected": "none"
+    },
+    {
+      "formula": "surge_z_spike",
+      "input": {
+        "today": 500,
+        "rolling_window": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ]
+      },
+      "expected": 400.0
+    },
+    {
+      "formula": "surge_z_flat",
+      "input": {
+        "today": 100,
+        "rolling_window": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ]
+      },
+      "expected": 0.0
+    },
+    {
+      "formula": "z_vph_normal",
+      "input": {
+        "current_vph": 300,
+        "author_avg_vph": 100,
+        "author_std_vph": 50
+      },
+      "expected": 4.0
+    },
+    {
+      "formula": "z_vph_small_dampened",
+      "input": {
+        "current_vph": 100,
+        "author_avg_vph": 10,
+        "author_std_vph": 3
+      },
+      "expected": 2.9444389791664403
+    },
+    {
+      "formula": "red_ocean_blue",
+      "input": {
+        "topic_saturation": 0.1
+      },
+      "expected": 1.05
+    },
+    {
+      "formula": "red_ocean_capped",
+      "input": {
+        "topic_saturation": 1.0
+      },
+      "expected": 1.5
+    },
+    {
+      "formula": "final_score",
+      "input": {
+        "z": 4.0,
+        "multiplier": 1.2
+      },
+      "expected": 290.0
+    },
+    {
+      "formula": "engagement_rate",
+      "input": {
+        "likes": 5000,
+        "replies": 500,
+        "views": 100000
+      },
+      "expected": 0.055
+    },
+    {
+      "formula": "like_ratio",
+      "input": {
+        "likes": 4200,
+        "views": 100000
+      },
+      "expected": 0.042
+    },
+    {
+      "formula": "account_momentum",
+      "input": {
+        "views_30d": 200000,
+        "views_prev_30d": 100000,
+        "followers_30d_gained": 1500,
+        "followers_prev_30d_gained": 1000
+      },
+      "expected": 3.0
+    },
+    {
+      "formula": "views_per_follower",
+      "input": {
+        "avg_views_90d": 10000,
+        "total_followers": 100000
+      },
+      "expected": 0.1
+    },
+    {
+      "formula": "outlier_ratio",
+      "input": {
+        "post_views": 50000,
+        "account_avg_views": 10000
+      },
+      "expected": 5.0
+    },
+    {
+      "formula": "content_efficiency",
+      "input": {
+        "views_30d": 100000,
+        "posts_30d": 4
+      },
+      "expected": 25000.0
+    },
+    {
+      "formula": "posting_consistency_regular",
+      "input": {
+        "post_timestamps_unix": [
+          0.0,
+          86400.0,
+          172800.0,
+          259200.0,
+          345600.0,
+          432000.0,
+          518400.0,
+          604800.0,
+          691200.0,
+          777600.0
+        ]
+      },
+      "expected": 1.0
+    },
+    {
+      "formula": "audience_credibility_real",
+      "input": {
+        "follower_engagement_rate": 0.06
+      },
+      "expected": "REAL"
+    },
+    {
+      "formula": "audience_credibility_suspicious",
+      "input": {
+        "follower_engagement_rate": 0.02
+      },
+      "expected": "SUSPICIOUS"
+    },
+    {
+      "formula": "follower_conversion",
+      "input": {
+        "followers_gained": 83,
+        "views": 10000
+      },
+      "expected": 0.0083
+    },
+    {
+      "formula": "account_health_score_perfect",
+      "input": {
+        "engagement_rate_norm": 100,
+        "posting_consistency_norm": 100,
+        "views_per_follower_norm": 100,
+        "content_efficiency_norm": 100,
+        "posting_frequency_norm": 100,
+        "follower_conversion_norm": 100,
+        "audience_credibility_norm": 100
+      },
+      "expected": 100.0
+    },
+    {
+      "formula": "growth_trigger_true",
+      "input": {
+        "growth_7d_ratio": 3.0
+      },
+      "expected": true
+    },
+    {
+      "formula": "growth_trigger_false",
+      "input": {
+        "growth_7d_ratio": 1.5
+      },
+      "expected": false
+    },
+    {
+      "formula": "repost_rate",
+      "input": {
+        "reposts": 110,
+        "views": 12500
+      },
+      "expected": 0.0088
+    },
+    {
+      "formula": "quote_rate",
+      "input": {
+        "quotes": 30,
+        "views": 12500
+      },
+      "expected": 0.0024
+    },
+    {
+      "formula": "viral_velocity_24h_early",
+      "input": {
+        "reposts": 100,
+        "hours_since_post": 2
+      },
+      "expected": 50.0
+    },
+    {
+      "formula": "viral_velocity_24h_capped",
+      "input": {
+        "reposts": 480,
+        "hours_since_post": 120
+      },
+      "expected": 20.0
+    },
+    {
+      "formula": "reply_ratio",
+      "input": {
+        "replies": 55,
+        "views": 12500
+      },
+      "expected": 0.0044
+    },
+    {
+      "formula": "threads_satisfaction_perfect",
+      "input": {
+        "reply_ratio_val": 0.05,
+        "repost_rate_val": 0.03,
+        "quote_rate_val": 0.02,
+        "follower_gain_rate": 0.01
+      },
+      "expected": 100.0
+    },
+    {
+      "formula": "media_type_branch_text",
+      "input": {
+        "media_type": "TEXT_POST"
+      },
+      "expected": [
+        180.0,
+        70.0
+      ]
+    },
+    {
+      "formula": "media_type_branch_video",
+      "input": {
+        "media_type": "VIDEO"
+      },
+      "expected": [
+        220.0,
+        80.0
+      ]
+    },
+    {
+      "formula": "share_rate",
+      "input": {
+        "shares": 18,
+        "views": 12500
+      },
+      "expected": 0.00144
+    },
+    {
+      "formula": "quote_to_reply_ratio",
+      "input": {
+        "quotes": 30,
+        "replies": 55
+      },
+      "expected": 0.5454545454545454
+    },
+    {
+      "formula": "link_attachment_penalty_with",
+      "input": {
+        "link_attachment_url": "https://example.com"
+      },
+      "expected": 0.7
+    },
+    {
+      "formula": "link_attachment_penalty_without",
+      "input": {
+        "link_attachment_url": null
+      },
+      "expected": 1.0
+    }
+  ]
+}

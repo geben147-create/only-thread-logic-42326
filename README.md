@@ -1,9 +1,19 @@
-# only-thread-logic-42326 — SOTDA Threads v0.1.0
+# only-thread-logic-42326 — SOTDA Threads v0.3.0
 
 > **Threads Graph API 게시물 폭발(viral/surge) 스코어링 라이브러리.**
-> 26개 수식 + 3-phase 파이프라인을 **어떤 프로그램에든** 가져다 쓸 수 있는 순수 Python 라이브러리.
+> 26개 수식 + 3-phase 파이프라인을 **어떤 프로그램에든, 어떤 언어로든** 가져다 쓸 수 있는 순수 라이브러리.
 
-외부 의존성 0개. 토큰/API 호출 코드 없음 (의도적으로 pure). 테스트 44/44 통과, 내장 TEST_BATTERY 100% fitness.
+외부 의존성 0개. 토큰/API 호출 코드 없음 (의도적으로 pure). **132/132 테스트 통과**, 39개 golden vectors 포함 (언어 무관 검증용).
+
+## 다른 SOTDA 레포와 함께 쓸 수 있습니다
+
+| 플랫폼 | 레포 | 패키지명 |
+|---|---|---|
+| **Threads** | **이 레포** | **`sotda`** |
+| X (Twitter) | [only-twitter-logic-4.24.26](https://github.com/geben147-create/only-twitter-logic-4.24.26) | `sotda_x` |
+
+여러 SOTDA를 같은 프로그램에서 **충돌 없이** 쓰는 방법: [`MULTI_SNS_INTEGRATION.md`](MULTI_SNS_INTEGRATION.md)
+언어 무관 포팅(TS/Go/Rust 등): [`SPEC.md`](SPEC.md) + [`golden_vectors.json`](golden_vectors.json)
 
 ---
 
