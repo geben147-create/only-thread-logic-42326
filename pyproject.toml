@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sotda-threads"
-version = "0.1.0"
+version = "0.3.0"
 description = "SOTDA v5.0 — Threads Graph API post explosion scoring (26 formulas, 3-phase pipeline, LLM-driven weight tuning)"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -185,17 +185,94 @@ class TestContentEfficiency:
 
 class TestPostingConsistency:
     def test_perfectly_regular(self):
-        """Daily posting: intervals all 86400s → std=0 → consistency=1.0."""
+        """Daily posting: intervals all 86400s → CV=0 → consistency=1.0."""
         timestamps = [86400.0 * i for i in range(10)]
         assert f.posting_consistency(timestamps) == pytest.approx(1.0)
 
-    def test_irregular_approaches_zero(self):
+    def test_scale_free_daily_with_jitter(self):
+        """Daily posting with ±1h jitter should score >0.9 (scale-free fix)."""
+        import random
+        random.seed(42)
+        timestamps = [i * 86400 + random.randint(-3600, 3600) for i in range(10)]
+        c = f.posting_consistency(timestamps)
+        # With CV-based formula: CV ≈ 3834/86400 ≈ 0.044 → c ≈ 0.957
+        assert c > 0.9, f"expected >0.9 for regular daily, got {c}"
+
+    def test_scale_free_monthly_with_daily_jitter(self):
+        """Monthly posting with ±1 day jitter should ALSO score high (scale-free)."""
+        import random
+        random.seed(42)
+        month = 86400 * 30
+        day = 86400
+        timestamps = [i * month + random.randint(-day, day) for i in range(10)]
+        c = f.posting_consistency(timestamps)
+        # CV ≈ (same ratio as daily+hour) → similar score
+        assert c > 0.9, f"scale-free: monthly±day should match daily±hour, got {c}"
+
+    def test_irregular_low_score(self):
+        """Highly irregular intervals: CV >> 1 → consistency near 0."""
         timestamps = [0, 3600, 86400 * 10, 86400 * 10 + 60, 86400 * 30]
         c = f.posting_consistency(timestamps)
-        assert 0.0 < c < 0.01  # huge std → near 0
+        assert c < 0.6
 
     def test_too_few_posts(self):
         assert f.posting_consistency([0, 86400]) == 0.0
+
+    def test_zero_mean_interval(self):
+        """Duplicated timestamps → mean=0 → safely returns 0."""
+        assert f.posting_consistency([100.0, 100.0, 100.0]) == 0.0
+
+
+class TestNormalizationHelpers:
+    """CH-7 helper functions to map raw values to 0-100 scores."""
+
+    def test_normalize_engagement_rate_at_target(self):
+        assert f.normalize_engagement_rate(0.05) == pytest.approx(100.0)
+
+    def test_normalize_engagement_rate_half(self):
+        assert f.normalize_engagement_rate(0.025) == pytest.approx(50.0)
+
+    def test_normalize_engagement_rate_zero(self):
+        assert f.normalize_engagement_rate(0) == 0.0
+
+    def test_normalize_engagement_rate_capped(self):
+        assert f.normalize_engagement_rate(0.20) == pytest.approx(100.0)
+
+    def test_normalize_posting_consistency(self):
+        assert f.normalize_posting_consistency(0.95) == pytest.approx(95.0)
+
+    def test_normalize_views_per_follower(self):
+        assert f.normalize_views_per_follower(0.10) == pytest.approx(100.0)
+        assert f.normalize_views_per_follower(0.05) == pytest.approx(50.0)
+
+    def test_normalize_content_efficiency(self):
+        assert f.normalize_content_efficiency(10_000) == pytest.approx(100.0)
+        assert f.normalize_content_efficiency(5_000) == pytest.approx(50.0)
+
+    def test_normalize_posting_frequency(self):
+        assert f.normalize_posting_frequency(30) == pytest.approx(100.0)
+        assert f.normalize_posting_frequency(15) == pytest.approx(50.0)
+
+    def test_normalize_follower_conversion(self):
+        assert f.normalize_follower_conversion(0.02) == pytest.approx(100.0)
+
+    def test_normalize_audience_credibility(self):
+        assert f.normalize_audience_credibility("REAL") == 100.0
+        assert f.normalize_audience_credibility("SUSPICIOUS") == 30.0
+
+    def test_end_to_end_health_score_with_helpers(self):
+        """Wire all helpers into account_health_score."""
+        score = f.account_health_score(
+            engagement_rate_norm=f.normalize_engagement_rate(0.05),
+            posting_consistency_norm=f.normalize_posting_consistency(0.9),
+            views_per_follower_norm=f.normalize_views_per_follower(0.1),
+            content_efficiency_norm=f.normalize_content_efficiency(15_000),
+            posting_frequency_norm=f.normalize_posting_frequency(30),
+            follower_conversion_norm=f.normalize_follower_conversion(0.02),
+            audience_credibility_norm=f.normalize_audience_credibility("REAL"),
+        )
+        # All ~100 → score should be ~95+
+        assert score > 95
 
 
 class TestAudienceCredibility:

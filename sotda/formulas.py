@@ -40,6 +40,13 @@ def modified_z(x: float, values: list[float]) -> float:
 
     More robust to outliers than the standard z-score.
 
+    Parameters:
+      x:       The value to score (may or may not be in `values`).
+      values:  The reference distribution. Typically the last N
+               observations of the same metric. **May include x or
+               not** — results barely differ (see audit §2). Convention:
+               pass the full history including the current observation.
+
     >>> round(modified_z(1_000_000, [1000, 1200, 800, 1500, 900, 1100, 1300, 1000000]), 1) > 100
     True
     """
@@ -226,17 +233,31 @@ def content_efficiency(views_30d: int, posts_30d: int) -> float:
 
 
 def posting_consistency(post_timestamps_unix: list[float]) -> float:
-    """**CH-5** posting-interval stability.
+    """**CH-5** posting-interval stability (scale-free).
 
-    formula: 1 / (1 + stdev(intervals))
-    1.0 = perfectly regular; approaches 0 = erratic.
+    formula: 1 / (1 + stdev(intervals) / mean(intervals))
+    i.e., `1 / (1 + coefficient_of_variation)`.
+
+    1.0 = perfectly regular; approaches 0 = erratic. Scale-free so a
+    daily schedule with ±1h jitter scores the same as a monthly
+    schedule with ±1 day jitter.
+
+    PREVIOUS FORMULA (v0.2.0): `1 / (1 + stdev(seconds))` was
+    unit-dependent and collapsed to ~0 for any real data. Fixed in
+    v0.3.0. See AUDIT.md §1.
     """
     if len(post_timestamps_unix) < 3:
         return 0.0
     sorted_ts = sorted(post_timestamps_unix)
     intervals = [sorted_ts[i + 1] - sorted_ts[i] for i in range(len(sorted_ts) - 1)]
-    std = statistics.stdev(intervals) if len(intervals) > 1 else 0.0
-    return 1.0 / (1.0 + std)
+    if len(intervals) < 2:
+        return 0.0
+    mean_int = statistics.mean(intervals)
+    if mean_int <= 0:
+        return 0.0
+    std_int = statistics.stdev(intervals)
+    cv = std_int / mean_int  # coefficient of variation
+    return 1.0 / (1.0 + cv)
 
 
 CredibilityLevel = Literal["REAL", "SUSPICIOUS"]
@@ -259,6 +280,55 @@ def follower_conversion(followers_gained: int, views: int) -> float:
     return followers_gained / views
 
 
+def _clamp(val: float, lo: float = 0.0, hi: float = 100.0) -> float:
+    return max(lo, min(val, hi))
+
+
+def normalize_engagement_rate(er: float, target: float = 0.05) -> float:
+    """Map raw engagement_rate to 0-100 score. Target = 5% → 100."""
+    if er <= 0:
+        return 0.0
+    return _clamp(er / target * 100)
+
+
+def normalize_posting_consistency(c: float) -> float:
+    """posting_consistency already returns 0-1; scale to 0-100."""
+    return _clamp(c * 100)
+
+
+def normalize_views_per_follower(vpf: float, target: float = 0.10) -> float:
+    """10% VPF = healthy = 100."""
+    if vpf <= 0:
+        return 0.0
+    return _clamp(vpf / target * 100)
+
+
+def normalize_content_efficiency(eff_views_per_post: float, target: float = 10_000) -> float:
+    """10K views/post = 100. Domain-specific; adjust target for your niche."""
+    if eff_views_per_post <= 0:
+        return 0.0
+    return _clamp(eff_views_per_post / target * 100)
+
+
+def normalize_posting_frequency(posts_30d: int, target: int = 30) -> float:
+    """30 posts/month = 100 (daily cadence)."""
+    if posts_30d <= 0:
+        return 0.0
+    return _clamp(posts_30d / target * 100)
+
+
+def normalize_follower_conversion(conv: float, target: float = 0.02) -> float:
+    """2% follower-gain-per-view = 100."""
+    if conv <= 0:
+        return 0.0
+    return _clamp(conv / target * 100)
+
+
+def normalize_audience_credibility(verdict: "CredibilityLevel") -> float:
+    """'REAL' → 100, 'SUSPICIOUS' → 30."""
+    return 100.0 if verdict == "REAL" else 30.0
+
+
 def account_health_score(
     engagement_rate_norm: float,
     posting_consistency_norm: float,
@@ -270,9 +340,21 @@ def account_health_score(
 ) -> float:
     """**CH-7** composite account health (7-indicator weighted).
 
-    All inputs normalized 0-100. Output 0-100.
-    Weights: engagement 25%, consistency 15%, vpf 15%, efficiency 15%,
-             frequency 10%, conversion 10%, credibility 10%.
+    All inputs must be normalized to 0-100. Use the `normalize_*`
+    helpers above to convert raw values:
+
+        >>> score = account_health_score(
+        ...     engagement_rate_norm=normalize_engagement_rate(0.05),
+        ...     posting_consistency_norm=normalize_posting_consistency(0.9),
+        ...     views_per_follower_norm=normalize_views_per_follower(0.1),
+        ...     content_efficiency_norm=normalize_content_efficiency(15000),
+        ...     posting_frequency_norm=normalize_posting_frequency(30),
+        ...     follower_conversion_norm=normalize_follower_conversion(0.02),
+        ...     audience_credibility_norm=normalize_audience_credibility('REAL'),
+        ... )
+
+    Output: 0-100. Weights: engagement 25%, consistency 15%, vpf 15%,
+    efficiency 15%, frequency 10%, conversion 10%, credibility 10%.
     """
     return (
         0.25 * engagement_rate_norm
@@ -422,6 +504,11 @@ __all__ = [
     "content_efficiency", "posting_consistency", "audience_credibility",
     "follower_conversion", "account_health_score", "growth_trigger",
     "CredibilityLevel",
+    # normalization helpers for CH-7
+    "normalize_engagement_rate", "normalize_posting_consistency",
+    "normalize_views_per_follower", "normalize_content_efficiency",
+    "normalize_posting_frequency", "normalize_follower_conversion",
+    "normalize_audience_credibility",
     # threads-only
     "repost_rate", "quote_rate", "viral_velocity_24h", "reply_ratio",
     "threads_satisfaction", "media_type_branch", "share_rate",
