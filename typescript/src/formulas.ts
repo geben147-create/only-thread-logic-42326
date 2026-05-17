@@ -1,5 +1,5 @@
 /**
- * SOTDA Threads — 26 formulas (TypeScript port).
+ * SOTDA Threads - 26 formulas (TypeScript port).
  * Zero runtime dependencies. Works in Node.js, Deno, Bun, Next.js,
  * React, browser. Target ES2022+.
  *
@@ -24,7 +24,7 @@ function stdev(values: number[]): number {
   return Math.sqrt(sum / (values.length - 1));
 }
 
-// 🟢 Trend (3)
+// Trend (3)
 export function modifiedZ(x: number, values: number[]): number {
   if (values.length === 0) return 0;
   const med = median(values);
@@ -49,7 +49,7 @@ export function surgeZ(today: number, rolling: number[]): number {
   return (today - m) / s;
 }
 
-// 🟢 Post (5)
+// Post (5)
 export function zVph(
   currentVph: number, authorAvgVph: number, authorStdVph: number,
   minVphThreshold = 50, minStdFloor = 5,
@@ -84,7 +84,7 @@ export function likeRatio(likes: number, views: number): number {
   return likes / views;
 }
 
-// 🟢 Account (9)
+// Account (9)
 export function accountMomentum(
   v30: number, vPrev: number, f30: number, fPrev: number,
 ): number {
@@ -161,7 +161,7 @@ export function growthTrigger(ratio: number, threshold = 2.0): boolean {
   return ratio > threshold;
 }
 
-// 🔵 Threads-specific (9)
+// Threads-specific (9)
 export function repostRate(reposts: number, views: number): number {
   if (views <= 0) return 0;
   return reposts / views;

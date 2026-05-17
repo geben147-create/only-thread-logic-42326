@@ -1,180 +1,155 @@
-# INTEGRATION.md — 이 로직을 어떤 프로그램에든 통합하기
+# INTEGRATION.md - Threads scoring logic integration guide
 
-> 이 레포는 **어떤 프로그램에서든 Threads 게시물 폭발을 점수화할 필요가 있을 때** 가져다 쓰는 순수 스코어링 라이브러리입니다.
-> 용도 예시: SNS 자동 생성기, 법률/컴플라이언스 모니터, 한국어 NLP 파이프라인, 마케팅 대시보드, 리서치 툴, 알림 시스템 등.
-> 공통점은 하나 — "Threads 게시물의 폭발/확산을 수치로 판단해야 한다."
+이 문서는 `only-thread-logic-42326`을 다른 프로그램에 붙이는 방법을 설명합니다.
 
----
+이 저장소는 **순수 점수 계산 라이브러리**입니다. Threads 토큰, API 호출, DB 저장, 스케줄러는 각 애플리케이션이 담당하고, 이 라이브러리는 입력값을 받아 점수만 계산합니다.
 
-## 1. 아키텍처 전제 — 순수 라이브러리
+## 아키텍처 원칙
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  당신이 개발 중인 프로그램 (private, 용도 무관)        │
-│                                                          │
-│  - SNS 생성기 / 법률 컴플라이언스 / NLP 툴 / 기타       │
-│  - Threads 토큰 .env 보관 (이 레포 아님)                │
-│  - Graph API 호출로 Insights 받아오기                   │
-│  - import sotda  ◄──────┐                                │
-│  - sotda로 점수만 계산   │                                │
-└──────────────────────────┼───────────────────────────────┘
-                           │ pip install
-                           │
-┌──────────────────────────┴───────────────────────────────┐
-│  only-thread-logic-42326 (이 public 레포)               │
-│                                                          │
-│  - 순수 수학 (I/O 없음)                                 │
-│  - PostStats in → ScoringResult out                     │
-│  - 토큰/API 호출 코드 절대 없음                         │
-└──────────────────────────────────────────────────────────┘
+```text
+Your application
+├── Stores Threads tokens in its own .env or secret manager
+├── Calls Threads Graph API
+├── Builds PostStats and TopicContext
+└── Imports sotda for scoring only
+
+only-thread-logic-42326
+├── No tokens
+├── No API calls
+├── No database writes
+└── Pure formulas and pipeline
 ```
 
-핵심 원칙:
-- **이 public 레포에는 토큰도, API 호출 코드도 없습니다.** 앞으로도 그럴 것입니다.
-- 당신의 프로그램이 Threads API에서 데이터를 받아 `PostStats`를 만들고 `sotda`에 넘깁니다.
-- `sotda`는 input만 받아 점수를 돌려줍니다 — 용도에 무관.
+이 원칙 덕분에 SNS 생성기, 법률/컴플라이언스 모니터링, NLP 연구, 마케팅 대시보드, 알림 시스템 등 어떤 프로그램에도 같은 방식으로 통합할 수 있습니다.
 
----
-
-## 2. 설치
-
-당신의 프로그램에서:
+## 설치
 
 ```bash
-# Git 직접 설치 (가장 간단)
 pip install git+https://github.com/geben147-create/only-thread-logic-42326.git
-
-# 또는 특정 태그 고정 (프로덕션 권장)
-pip install git+https://github.com/geben147-create/only-thread-logic-42326.git@v0.1.0
 ```
 
-`requirements.txt`에 추가:
+운영 환경에서는 특정 태그로 고정하는 것을 권장합니다.
 
-```
-sotda-threads @ git+https://github.com/geben147-create/only-thread-logic-42326.git@main
+```bash
+pip install git+https://github.com/geben147-create/only-thread-logic-42326.git@v0.3.0
 ```
 
-로컬 개발이면:
+`requirements.txt` 예시:
+
+```text
+sotda-threads @ git+https://github.com/geben147-create/only-thread-logic-42326.git@v0.3.0
+```
+
+로컬 개발:
 
 ```bash
 git clone https://github.com/geben147-create/only-thread-logic-42326.git
 pip install -e ./only-thread-logic-42326
 ```
 
----
-
-## 3. 최소 사용법 (어떤 프로그램이든 동일)
+## 최소 통합 예시
 
 ```python
 from sotda import ExplosionScoringPipeline, PostStats, TopicContext
 
 pipeline = ExplosionScoringPipeline()
 
-# 당신의 프로그램이 어디서 어떻게 수집했든,
-# Threads Graph API 필드만 넣으면 됩니다.
 stats = PostStats(
     post_id="17841400000000000_9876543",
     current_vph=500,       # views / hours_since_post
-    author_avg_vph=120,    # 최근 N일간 이 계정 게시물 VPH 평균
-    author_std_vph=45,     # 〃 표준편차
+    author_avg_vph=120,    # author's recent average VPH
+    author_std_vph=45,     # author's recent VPH standard deviation
 )
+
 topic = TopicContext(
     topic="#ai",
-    saturation_index=0.8,  # 해시태그/토픽 포화도 0.0 ~ 1.0
+    saturation_index=0.8,  # 0.0 = niche, 1.0 = saturated
 )
 
 result = pipeline.score(stats, topic)
 print(result.to_dict())
-# {'post_burst_score': 8.44, 'red_ocean_multiplier': 1.4,
-#  'final_score': 590.8, 'usability_flag': 'HIGH', 'corrections_applied': []}
 ```
 
-이게 전부입니다. 나머지는 당신의 프로그램이 알아서 합니다.
+애플리케이션 쪽에서 해야 할 일은 세 가지입니다.
 
----
+1. Threads Graph API에서 게시물 조회수와 timestamp를 가져옵니다.
+2. 작성자의 최근 게시물로 `author_avg_vph`, `author_std_vph`를 계산합니다.
+3. 해시태그나 topic tag의 최근 빈도로 `saturation_index`를 계산합니다.
 
-## 4. 용도별 통합 패턴 예시
+## 사용 패턴
 
-### A. SNS 자동 생성기
-발행 → 몇 시간 대기 → 점수 계산 → HIGH 점수 게시물을 다음 생성의 few-shot positive로
+### SNS 자동 생성기
 
-### B. 법률/컴플라이언스 모니터
-특정 키워드 게시물 감시 → 폭발(viral/surge) 감지 시 알림 → 컴플라이언스 팀 에스컬레이션
+`usability_flag == "HIGH"`인 게시물을 few-shot positive example로 사용합니다.
 
-### C. 한국어 NLP 연구 툴
-한국어 게시물 코퍼스 수집 → 폭발 여부로 라벨 붙여 NLP 모델 학습 데이터로
+### 컴플라이언스 모니터링
 
-### D. 마케팅 대시보드
-브랜드 계정 게시물 모두 점수화 → 시간별 추이 그래프 → 효과 있는 포맷 식별
+특정 키워드 게시물의 확산을 감시하고 `HIGH` 또는 `viral` 신호가 나오면 알림이나 검토 큐로 보냅니다.
 
-### E. 경쟁사 분석
-경쟁사 계정 게시물 정기 점수화 → outlier_ratio 높은 게시물만 추려 벤치마크 대상
+### NLP 연구
 
-**모든 용도에서 통합 코드는 같습니다** — 위 3번의 10줄. 다른 건 당신 프로그램이 점수를 어떻게 쓰는지뿐.
+게시물 코퍼스에 확산 점수 라벨을 붙여 분류, 랭킹, 이상치 연구 데이터로 사용합니다.
 
----
+### 마케팅 대시보드
 
-## 5. 당신의 프로그램에서 쓰면 안 되는 것
+브랜드 계정 게시물의 `final_score`, `post_burst_score`, `red_ocean_multiplier` 추이를 시계열로 저장합니다.
 
-- ❌ 이 레포에 토큰 커밋 (이 레포는 토큰을 읽지도 쓰지도 않음)
-- ❌ `sotda/optimizer.py` — autoresearch 루프는 **선택 기능**. 필요 없으면 무시
-- ❌ `sotda/evaluator.py`의 `TEST_BATTERY` — 내부 검증용. 건드리지 말 것
+### 경쟁 분석
 
-**쓸 수 있는 API 두 가지:**
+경쟁 계정의 outlier 게시물을 추출해 벤치마크 후보로 사용합니다.
 
-**(A) Pipeline 래퍼** (빠른 시작, 한 줄 호출):
-- `PostStats` (input)
-- `TopicContext` (input)
-- `ExplosionScoringPipeline` → `ScoringResult`
+## 제공 API
 
-**(B) 개별 수식 26개** (pick-and-mix, 자유 조합):
+### Pipeline facade
+
+일반적인 통합에는 이 세 가지를 사용하면 충분합니다.
+
+- `PostStats`
+- `TopicContext`
+- `ExplosionScoringPipeline`
+
+### 개별 공식
+
+더 세밀하게 조합하려면 `sotda.formulas`에서 필요한 공식만 가져올 수 있습니다.
+
 ```python
 from sotda import formulas as f
 
-# 쓰고 싶은 것만 꺼내 씀
-er = f.engagement_rate(likes=420, replies=55, views=12500)
-rp = f.repost_rate(reposts=110, views=12500)
+er = f.engagement_rate(likes=420, replies=55, views=12_500)
+rp = f.repost_rate(reposts=110, views=12_500)
 mz = f.modified_z(current_views, baseline_views_list)
-health = f.account_health_score(er_norm, consistency_norm, ...)
+health = f.account_health_score(er_norm, consistency_norm, vpf_norm, eff_norm, freq_norm, conv_norm, cred_norm)
 high_thr, low_thr = f.media_type_branch("VIDEO")
 ```
-전체 목록은 `sotda.formulas.__all__` 또는 `docs/FORMULA_MASTER.md` 참고.
 
----
+전체 목록은 `sotda.formulas.__all__` 또는 [docs/FORMULA_MASTER.md](docs/FORMULA_MASTER.md)를 확인하세요.
 
-## 6. 자주 발생하는 실수 (용도 무관)
+## 자주 생기는 실수
 
 | 실수 | 결과 | 해결 |
 |---|---|---|
-| `author_avg_vph=0` 넣음 | 모든 z-score 폭주 | 최소 30일 baseline 먼저 수집 |
-| 게시 직후(1시간 미만) 채점 | VPH 노이즈 커서 오탐 | 최소 6시간 기다림 |
-| `hashtag_saturation`을 매번 0.5로 하드코딩 | Phase 2 무의미해짐 | 해시태그 최근 7일 포스트 수로 normalize |
-| 토큰을 `sotda/` 안에 `.env`로 넣음 | 공개 시 유출 | 당신 프로그램 루트에 `.env` — 이 레포엔 절대 X |
+| `author_avg_vph=0`으로 채점 | z-score가 의미 없어짐 | 최소 30개 최근 게시물로 baseline 계산 |
+| 게시 직후 1시간 미만에 채점 | VPH 노이즈가 큼 | 최소 6시간 후 1차 채점 권장 |
+| `saturation_index`를 항상 0.5로 고정 | Phase 2가 의미 없어짐 | 최근 7일 해시태그 빈도로 정규화 |
+| 이 저장소 안에 `.env` 저장 | 공개 저장소에 토큰 노출 위험 | 토큰은 사용하는 애플리케이션 루트에만 저장 |
+| 플랫폼 간 `final_score` 직접 비교 | 잘못된 순위 해석 | `usability_flag` 또는 z-score로 비교 |
 
----
+## 선택 기능: weight tuning
 
-## 7. (선택) 가중치 튜닝
+기본 가중치는 내장 `TEST_BATTERY`에서 100% fitness를 목표로 튜닝되어 있습니다. 도메인 데이터에 맞게 조정하려면 로컬에서만 다음 흐름을 사용하세요.
 
-기본 가중치로 내장 TEST_BATTERY 100% fitness. 당신 도메인 데이터에서 flag가 자주 틀리면:
+1. 애플리케이션에서 100-200건의 게시물과 human label을 수집합니다.
+2. 로컬 복사본의 `sotda/evaluator.py::TEST_BATTERY`를 교체합니다.
+3. `python -m sotda.optimizer --cycles 10`을 실행합니다.
+4. 생성된 `data/best_weights.json`을 애플리케이션 설정으로 가져갑니다.
+5. 공개 저장소에 사내 데이터나 비공개 label을 PR하지 않습니다.
 
-1. 당신 프로그램에서 100-200건 수집 (`post_id, actual_metrics, human_label`)
-2. 이 레포를 clone해 **로컬에서만** `sotda/evaluator.py::TEST_BATTERY`를 당신 데이터로 교체
-3. `python -m sotda.optimizer --cycles 10` 실행 → Claude가 가중치 제안
-4. 나온 `data/best_weights.json`을 당신 프로그램 프로젝트로 복사
-5. 프로그램에서 `Phase1PostExplosion(min_vph_threshold=...)` 식으로 주입
-
-**교체한 TEST_BATTERY는 절대 이 public 레포에 PR하지 말 것** — 당신 도메인 특화라 일반 사용자에게 역효과.
-
----
-
-## 8. 체크리스트
-
-통합 전 확인:
+## 통합 체크리스트
 
 - [ ] `pip install git+...` 성공
 - [ ] `from sotda import PostStats, TopicContext, ExplosionScoringPipeline` import 성공
-- [ ] `.env`는 당신 프로그램 루트에만 (이 레포에는 없음)
+- [ ] `.env`는 애플리케이션 루트에만 존재
 - [ ] Threads Graph API 토큰은 Meta Developer Console에서 발급
-- [ ] 최소 30일치 당신 계정 게시물 VPH로 `author_avg_vph`, `author_std_vph` 계산 로직 구현
-- [ ] 게시 후 최소 6시간 지난 뒤 채점
-- [ ] `ScoringResult.usability_flag`를 당신 프로그램 내부 로직에 연결
+- [ ] 최소 30개 최근 게시물로 author baseline 계산
+- [ ] 게시 후 최소 6시간 뒤 채점
+- [ ] `ScoringResult.usability_flag`를 애플리케이션 의사결정 로직에 연결

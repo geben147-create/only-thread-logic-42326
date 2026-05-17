@@ -94,4 +94,4 @@ if (fail > 0) {
   for (const l of failures) console.log(l);
   process.exit(1);
 }
-console.log('✓ TypeScript port matches Python reference.');
+console.log('TypeScript port matches Python reference.');

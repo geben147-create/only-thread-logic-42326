@@ -1,7 +1,7 @@
 {
   "name": "sotda-threads",
   "version": "0.3.0",
-  "description": "SOTDA Threads — Meta Threads Graph API scoring. 26 formulas. TypeScript port.",
+  "description": "SOTDA Threads: Meta Threads Graph API scoring. 26 formulas. TypeScript port.",
   "license": "MIT",
   "type": "module",
   "main": "dist/formulas.js",

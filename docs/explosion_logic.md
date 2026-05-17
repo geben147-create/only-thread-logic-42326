@@ -1,62 +1,86 @@
-# Explosion Focus Scoring Logic (SaaS 3-Phase Separation)
+# Explosion Focus Scoring Logic
 
-This logic focuses on finding **relative explosion (z-score)** that exceeds an account's average weight class, not absolute numbers (Global Trend). Red ocean is treated as a **demand accelerator**, not a filter.
+SOTDA Threads focuses on **relative explosion**: how strongly a post outperforms the author's own baseline. It does not try to measure global trend size by absolute views alone.
 
-> **Platform**: Threads Graph API v1.0 (2024).
-> The algorithm is source-agnostic — it reads only `views / hours_since_post / author baseline`.
+Red ocean topics are treated as demand accelerators. If a post breaks out inside a saturated topic, that is stronger evidence of real demand, not a reason to discard it.
 
-## [Phase 1] Post Explosion Score (z-VPH)
+## Phase 1 - Post Explosion Score
 
-* **Core Metric:** Relative z-VPH (Views Per Hour Z-score)
-* **Description:** Measures how many standard deviations above the author's usual VPH a post currently sits.
-* **Formula:**
-  ```
-  z_vph = (current_vph - author_avg_vph) / author_std_vph
-  ```
-* **Threads input fields:** `views` (Media Insights) + `timestamp` (Media Fields) → VPH;
-  aggregate across author's recent posts for `author_avg_vph` / `author_std_vph`.
-* **Open Research Questions:**
-  - Small accounts (avg 10-20 views) can produce deformed z-scores when a post hits 100 views
-  - Need optimal correction: minimum VPH threshold? Log scaling? Bayesian smoothing?
-  - **autoresearch task:** Find the best correction formula to prevent small-account z-score inflation while preserving genuine explosion signals
+Core metric: z-VPH, or views-per-hour z-score.
 
-## [Phase 2] Red Ocean Multiplier
+```text
+z_vph = (current_vph - author_avg_vph) / author_std_vph
+```
 
-* **Core Metric:** Topic Saturation Index as a multiplicative weight
-* **Description:** If a post shows high z-VPH despite being on a saturated (red ocean) hashtag/topic, this proves explosive demand. Apply bonus multiplier.
-* **Formula:**
-  ```
-  Phase2_Score = Phase1_Score * (1 + (topic_saturation_index * weight))
-  ```
-* **Threads input:** Hashtag frequency across recent 7-day window (count of posts under the same `topic_tag` or top hashtag). No keyword-volume API is available — saturation is derived from observed post counts.
-* **Open Research Questions:**
-  - Maximum cap needed to prevent runaway scores (e.g., cap at 1.5x?)
-  - What cap value yields highest hit-rate in backtesting?
-  - **autoresearch task:** Test optimal cap values (1.2x, 1.5x, 2.0x) against historical data to find best precision/recall balance
+Inputs:
 
-## [Phase 3] Usability & SaaS Output Separation
+- `current_vph`: current post views divided by hours since posting.
+- `author_avg_vph`: average VPH across the author's recent posts.
+- `author_std_vph`: standard deviation of VPH across the author's recent posts.
 
-* **Core Metric:** Benchmarking suitability (imitability score)
-* **Description:** Never mix post score and account score. Output must be separated into 3 independent JSON fields:
-  1. Post burst score (pure explosion)
-  2. Account baseline (foundation strength)
-  3. Usability flag (difficulty for us to replicate this topic)
+Small-account correction:
 
-* **Target Output Schema:**
-  ```json
-  {
-    "post_burst_score": 85,
-    "red_ocean_multiplier": 1.2,
-    "final_score": 102,
-    "usability_flag": "HIGH"
-  }
-  ```
+- Apply a minimum standard deviation floor to avoid division by near-zero values.
+- If the author's average VPH is below the small-account threshold, apply `log1p` dampening.
+
+This prevents tiny accounts from producing absurd z-scores when a post moves from 5 views/hour to 100 views/hour, while still allowing genuine breakouts to score high.
+
+## Phase 2 - Red Ocean Multiplier
+
+Core metric: topic saturation index.
+
+```text
+multiplier = 1 + min(topic_saturation_index * weight, cap - 1)
+```
+
+Interpretation:
+
+- Low saturation means the topic is niche; multiplier stays near 1.0.
+- High saturation means the topic is crowded; a breakout there gets a bonus.
+- The cap prevents runaway scores.
+
+Threads does not expose keyword search volume. A practical implementation should derive topic saturation from recent hashtag or topic-tag frequency.
+
+## Phase 3 - Usability Output
+
+The pipeline returns separated fields instead of one opaque score.
+
+```json
+{
+  "post_burst_score": 8.44,
+  "red_ocean_multiplier": 1.4,
+  "final_score": 640.8,
+  "usability_flag": "HIGH",
+  "corrections_applied": []
+}
+```
+
+Field meanings:
+
+- `post_burst_score`: pure account-relative burst signal.
+- `red_ocean_multiplier`: demand-context multiplier.
+- `final_score`: normalized score used for thresholding.
+- `usability_flag`: `HIGH`, `MEDIUM`, or `LOW`.
+- `corrections_applied`: transparency log for small-account corrections.
 
 ## Decision Log
 
-| Dimension | Global Trend alternative | Our Choice (Explosion Focus) | Reason |
-|-----------|------------------------------|------------------------------|--------|
-| Core metric | Absolute VPH (market speed) | Relative z-VPH (account-relative burst) | "Explosion" = outperforming your own weight class, z-score captures this |
-| Red ocean | Filter out (exclude) | Accelerator (multiply) | Viral in red ocean = proven demand, reward it |
-| Architecture | Single unified score | 3-phase separation (post/account/usability) | Maintainability + SaaS extensibility, clear data pipeline |
-| Platform | YouTube (watch_time/retention) | Threads (reposts/quotes/shares) | YouTube's retention signals unavailable via Threads API — replaced with reposts/quotes/shares as viral proxies |
+| Dimension | Alternative | SOTDA choice | Reason |
+|---|---|---|---|
+| Core metric | absolute VPH | account-relative z-VPH | breakout should be measured against the author's baseline |
+| Red ocean | filter out crowded topics | multiply proven demand | viral signal in a crowded topic is valuable |
+| Architecture | one unified score | 3-phase separation | easier to debug, tune, and integrate |
+| Platform signals | YouTube retention/watch time | Threads reposts/quotes/shares | Threads API does not expose retention signals |
+
+## Practical Defaults
+
+| Parameter | Default | Purpose |
+|---|---:|---|
+| `min_vph_threshold` | 50.0 | small-account detection |
+| `min_std_floor` | 5.0 | zero-division and noise guard |
+| `red_ocean_weight` | 0.5 | saturation bonus strength |
+| `red_ocean_cap` | 1.5 | maximum multiplier |
+| `high_threshold` | 210.0 | `HIGH` cutoff |
+| `low_threshold` | 75.0 | `MEDIUM` cutoff |
+
+These defaults are tuned against the built-in `TEST_BATTERY`. For a production domain, collect labeled examples and tune thresholds locally.
