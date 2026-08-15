@@ -29,8 +29,14 @@ export function modifiedZ(x: number, values: number[]): number {
   if (values.length === 0) return 0;
   const med = median(values);
   const dev = values.map(v => Math.abs(v - med));
-  let mad = median(dev);
-  if (mad === 0) mad = 1.0;
+  const mad = median(dev);
+  if (mad === 0) {
+    // Iglewicz-Hoaglin fallback (mirrors Python): meanAD with 1.253314;
+    // a fully flat history carries no spread signal -> 0.
+    const meanAd = mean(dev);
+    if (meanAd === 0) return 0;
+    return (x - med) / (1.253314 * meanAd);
+  }
   return (0.6745 * (x - med)) / mad;
 }
 export type AlertLevel = 'viral' | 'surge' | 'trending' | 'watch' | 'none';
@@ -44,8 +50,9 @@ export function alertLevel(z: number, growth7d = 0): AlertLevel {
 export function surgeZ(today: number, rolling: number[]): number {
   if (rolling.length < 2) return 0;
   const m = mean(rolling);
-  let s = stdev(rolling);
-  if (s === 0) s = 1.0;
+  const s = stdev(rolling);
+  // Flat window -> no basis for a spike judgement (mirrors Python).
+  if (s === 0) return 0;
   return (today - m) / s;
 }
 
@@ -60,16 +67,28 @@ export function zVph(
     corr.push(`std_floor_applied: ${authorStdVph.toFixed(2)} -> ${effStd.toFixed(2)}`);
   }
   const rawZ = (currentVph - authorAvgVph) / effStd;
-  if (authorAvgVph < minVphThreshold) {
+  // Smoothstep blend over [0.8*thr, 1.2*thr] — mirrors Python (removes the
+  // hard 49.9-vs-50.1 discontinuity in small-account dampening).
+  const blendLo = 0.8 * minVphThreshold;
+  const blendHi = 1.2 * minVphThreshold;
+  if (authorAvgVph < blendHi) {
     const damp = Math.log1p(Math.abs(rawZ)) * (rawZ >= 0 ? 1 : -1);
-    corr.push(`log_scaling_applied: raw_z=${rawZ.toFixed(2)} -> dampened_z=${damp.toFixed(2)}`);
-    return [damp, corr];
+    let t = 0;
+    if (authorAvgVph > blendLo) {
+      const u = (authorAvgVph - blendLo) / (blendHi - blendLo);
+      t = u * u * (3 - 2 * u);
+    }
+    const blended = t * rawZ + (1 - t) * damp;
+    corr.push(`log_scaling_applied: raw_z=${rawZ.toFixed(2)} -> dampened_z=${blended.toFixed(2)}`);
+    return [blended, corr];
   }
   return [rawZ, corr];
 }
 export function redOceanMultiplier(sat: number, weight = 0.5, cap = 1.5): number {
   if (cap < 1.0) throw new Error(`cap must be >= 1.0, got ${cap}`);
-  return 1.0 + Math.min(sat * weight, cap - 1.0);
+  // saturation is defined on [0, 1]; never let bad input become a penalty.
+  const s = Math.max(0, Math.min(sat, 1));
+  return 1.0 + Math.min(s * weight, cap - 1.0);
 }
 export function finalScoreV1(z: number, m: number, base = 50, scale = 50): number {
   return z * m * scale + base;
@@ -87,8 +106,9 @@ export function likeRatio(likes: number, views: number): number {
 // Account (9)
 export function accountMomentum(
   v30: number, vPrev: number, f30: number, fPrev: number,
-): number {
-  if (vPrev <= 0 || fPrev <= 0) return 0;
+): number | null {
+  // Empty previous period = "cannot be computed", not worst-case deceleration.
+  if (vPrev <= 0 || fPrev <= 0) return null;
   return (v30 / vPrev) * (f30 / fPrev);
 }
 export function viewsPerFollower(avgViews90d: number, totalFollowers: number): number {
@@ -171,6 +191,8 @@ export function quoteRate(quotes: number, views: number): number {
   return quotes / views;
 }
 export function viralVelocity24h(reposts: number, hoursSincePost: number): number {
+  // Negative elapsed time is a data error, not maximum velocity (mirrors Python).
+  if (hoursSincePost < 0) return 0;
   const h = Math.min(Math.max(hoursSincePost, 1.0), 24.0);
   return reposts / h;
 }
@@ -193,14 +215,16 @@ export function mediaTypeBranch(mt: string): [number, number] {
     TEXT_POST: [180, 70], IMAGE: [200, 75],
     VIDEO: [220, 80], CAROUSEL_ALBUM: [210, 78],
   };
-  return t[mt] ?? [210, 75];
+  // hasOwn guard: `t[mt] ?? ...` leaked prototype keys (e.g. "toString").
+  return Object.hasOwn(t, mt) ? t[mt] : [210, 75];
 }
 export function shareRate(shares: number, views: number): number {
   if (views <= 0) return 0;
   return shares / views;
 }
 export function quoteToReplyRatio(quotes: number, replies: number): number {
-  if (replies <= 0) return 0;
+  // quotes with zero replies = maximal contention; winsorized cap (mirrors Python).
+  if (replies <= 0) return quotes <= 0 ? 0 : Math.min(quotes, 100);
   return quotes / replies;
 }
 export function linkAttachmentPenalty(linkAttachmentUrl: string | null | undefined): number {

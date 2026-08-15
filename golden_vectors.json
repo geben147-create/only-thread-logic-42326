@@ -78,7 +78,7 @@
           100
         ]
       },
-      "expected": 400.0
+      "expected": 0.0
     },
     {
       "formula": "surge_z_flat",

@@ -58,9 +58,17 @@ class TestAlertLevel:
 
 class TestSurgeZ:
     def test_sudden_spike(self):
-        """D-2a: 5x jump on flat baseline → large positive z."""
-        z = f.surge_z(500, [100] * 7)
-        assert z > 3.0  # std was 0 → floored to 1, z=(500-100)/1=400 but we only need > 3
+        """D-2a: 5x jump on a noisy baseline → large positive z."""
+        z = f.surge_z(500, [100, 110, 90, 105, 95, 100, 100])
+        assert z > 3.0
+
+    def test_flat_window_gives_no_judgement(self):
+        """D-2a: flat baseline carries no spread signal → 0.0.
+
+        (Old spec floored std to 1.0, so any absolute delta exploded into
+        z=400 "viral" — a false positive on rounded/stale counters.)
+        """
+        assert f.surge_z(500, [100] * 7) == 0.0
 
     def test_no_change(self):
         z = f.surge_z(100, [100] * 7)
@@ -147,8 +155,13 @@ class TestAccountMomentum:
         m = f.account_momentum(100_000, 100_000, 1000, 1000)
         assert m == pytest.approx(1.0)
 
-    def test_zero_prev(self):
-        assert f.account_momentum(100_000, 0, 1000, 500) == 0.0
+    def test_zero_prev_is_uncomputable(self):
+        """CH-1: empty previous period = None (cannot compute), not 0.0.
+
+        (Old spec returned 0.0, which made a brand-new account read as the
+        worst-possible deceleration.)
+        """
+        assert f.account_momentum(100_000, 0, 1000, 500) is None
 
 
 class TestViewsPerFollower:
@@ -407,8 +420,16 @@ class TestQuoteToReplyRatio:
         """T-8: 30 quotes / 55 replies = 0.545 (debate)."""
         assert f.quote_to_reply_ratio(30, 55) == pytest.approx(0.545, abs=0.01)
 
-    def test_no_replies(self):
-        assert f.quote_to_reply_ratio(10, 0) == 0.0
+    def test_quotes_without_replies_is_max_contention(self):
+        """T-8: quotes with zero replies = maximal contention, capped.
+
+        (Old spec returned 0.0, inverting the meaning of the signal.)
+        """
+        assert f.quote_to_reply_ratio(10, 0) == 10.0
+        assert f.quote_to_reply_ratio(1000, 0) == 100.0  # winsorized cap
+
+    def test_no_signal_at_all(self):
+        assert f.quote_to_reply_ratio(0, 0) == 0.0
 
 
 class TestLinkAttachmentPenalty:

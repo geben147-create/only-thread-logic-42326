@@ -178,7 +178,7 @@ class WeightGenerator:
             min_std_floor=float(proposed["min_std_floor"]),
             red_ocean_weight=float(proposed["red_ocean_weight"]),
             red_ocean_cap=float(proposed["red_ocean_cap"]),
-            high_threshold=float(proposed.get("high_threshold", 200.0)),
+            high_threshold=float(proposed.get("high_threshold", 210.0)),
             low_threshold=float(proposed.get("low_threshold", 75.0)),
             iteration=current_weights.iteration + 1,
             reasoning=proposed.get("reasoning", ""),

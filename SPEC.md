@@ -19,7 +19,7 @@ The Python code in `sotda/` is the reference implementation. A port is considere
 Ports should implement these helpers with equivalent behavior:
 
 - `clamp(value, lo, hi)`: bound a number to an inclusive range.
-- `median(values)`: median of sorted values; return `0` for empty input only where the Python reference does.
+- `median(values)`: median of sorted values. Empty input never reaches `median` itself — `modified_z` guards it first (Python's `statistics.median` raises on empty input; the TS helper's `0` return is a defensive no-op).
 - `mean(values)`: arithmetic mean.
 - `stdev(values)`: sample standard deviation.
 - `log1p(value)`: natural log of `1 + value`.

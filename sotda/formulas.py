@@ -56,7 +56,14 @@ def modified_z(x: float, values: list[float]) -> float:
     deviations = [abs(v - median) for v in values]
     mad = statistics.median(deviations)
     if mad == 0:
-        mad = 1.0
+        # Iglewicz-Hoaglin fallback: MAD=0 (over half the values identical)
+        # switches to meanAD with the 1.253314 consistency constant.
+        # A fully flat history carries no spread signal -> 0.0, so a +1%
+        # blip on rounded view counts can no longer read as "viral".
+        mean_ad = statistics.mean(deviations)
+        if mean_ad == 0:
+            return 0.0
+        return (x - median) / (1.253314 * mean_ad)
     return 0.6745 * (x - median) / mad
 
 
@@ -97,7 +104,9 @@ def surge_z(today: float, rolling_window: list[float]) -> float:
     mean = statistics.mean(rolling_window)
     std = statistics.stdev(rolling_window)
     if std == 0:
-        std = 1.0
+        # A flat window gives no basis for a spike judgement; the old
+        # std=1.0 fallback made any absolute delta explode into "viral".
+        return 0.0
     return (today - mean) / std
 
 
@@ -128,12 +137,23 @@ def z_vph(
             f"std_floor_applied: {author_std_vph:.2f} -> {effective_std:.2f}"
         )
     raw_z = (current_vph - author_avg_vph) / effective_std
-    if author_avg_vph < min_vph_threshold:
+    # Smooth the small-account dampening: a hard cutoff at the threshold made
+    # avg=49.9 vs 50.1 score 3.4x apart. Blend dampened->raw with smoothstep
+    # over [0.8*threshold, 1.2*threshold] so the transition is continuous.
+    blend_lo = 0.8 * min_vph_threshold
+    blend_hi = 1.2 * min_vph_threshold
+    if author_avg_vph < blend_hi:
         dampened = math.log1p(abs(raw_z)) * (1 if raw_z >= 0 else -1)
+        if author_avg_vph <= blend_lo:
+            t = 0.0
+        else:
+            u = (author_avg_vph - blend_lo) / (blend_hi - blend_lo)
+            t = u * u * (3.0 - 2.0 * u)
+        blended = t * raw_z + (1.0 - t) * dampened
         corrections.append(
-            f"log_scaling_applied: raw_z={raw_z:.2f} -> dampened_z={dampened:.2f}"
+            f"log_scaling_applied: raw_z={raw_z:.2f} -> dampened_z={blended:.2f}"
         )
-        return dampened, corrections
+        return blended, corrections
     return raw_z, corrections
 
 
@@ -147,6 +167,9 @@ def red_ocean_multiplier(
     """
     if cap < 1.0:
         raise ValueError(f"cap must be >= 1.0, got {cap}")
+    # saturation is defined on [0, 1]; out-of-range inputs (e.g. a negative
+    # saturation from an upstream bug) must not turn the booster into a penalty.
+    topic_saturation = max(0.0, min(topic_saturation, 1.0))
     return 1.0 + min(topic_saturation * weight, cap - 1.0)
 
 
@@ -188,14 +211,18 @@ def account_momentum(
     views_prev_30d: int,
     followers_30d_gained: int,
     followers_prev_30d_gained: int,
-) -> float:
+) -> Optional[float]:
     """**CH-1** month-over-month growth acceleration.
 
     formula: (views_30d / views_prev) * (followers_30d / followers_prev)
     1.0 = stable, >1.0 accelerating, <1.0 decelerating.
+
+    Returns None when the previous period is empty (new account) — that is
+    "cannot be computed", not the worst-possible deceleration. Aggregators
+    should treat None as neutral.
     """
     if views_prev_30d <= 0 or followers_prev_30d_gained <= 0:
-        return 0.0
+        return None
     return (views_30d / views_prev_30d) * (
         followers_30d_gained / followers_prev_30d_gained
     )
@@ -406,6 +433,10 @@ def viral_velocity_24h(reposts: int, hours_since_post: float) -> float:
     Threads posts typically decay within 24-48h, so we cap the
     denominator at 24h to reflect the initial explosion window.
     """
+    if hours_since_post < 0:
+        # A negative elapsed time is a data error; clamping it to 1h would
+        # report the maximum possible velocity for garbage input.
+        return 0.0
     effective_hours = min(max(hours_since_post, 1.0), 24.0)
     return reposts / effective_hours
 
@@ -478,9 +509,13 @@ def quote_to_reply_ratio(quotes: int, replies: int) -> float:
 
     High ratio suggests the post triggers quotes (public commentary)
     more than replies (direct conversation) — a debate signal.
+
+    quotes with zero replies is *maximal* contention, not "no signal":
+    the old 0.0 return inverted the meaning. Winsorized cap keeps the
+    value finite and comparable.
     """
     if replies <= 0:
-        return 0.0
+        return 0.0 if quotes <= 0 else min(float(quotes), 100.0)
     return quotes / replies
 
 

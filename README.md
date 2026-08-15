@@ -33,7 +33,7 @@ print(result.to_dict())
 # {
 #   "post_burst_score": 8.44,
 #   "red_ocean_multiplier": 1.4,
-#   "final_score": 640.78,
+#   "final_score": 641.11,
 #   "usability_flag": "HIGH",
 #   "corrections_applied": []
 # }

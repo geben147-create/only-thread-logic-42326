@@ -31,7 +31,7 @@ Threads version:
 
 | ID | Formula | Output | Definition |
 |---|---|---|---|
-| D-3b | `modified_z` | numeric z-score | `0.6745 * (x - median) / MAD` |
+| D-3b | `modified_z` | numeric z-score | `0.6745 * (x - median) / MAD` — MAD=0이면 Iglewicz-Hoaglin 폴백 `(x - median) / (1.253314 * meanAD)`, 전부 동일값이면 `0.0` |
 | D-4a | `alert_level` | label | `viral`, `surge`, `trending`, `watch`, or `none` |
 | D-2a | `surge_z` | numeric z-score | `(today - rolling_mean) / rolling_std` |
 
@@ -39,8 +39,8 @@ Threads version:
 
 | ID | Formula | Output | Definition |
 |---|---|---|---|
-| A-1 | `z_vph` | `(score, corrections)` | account-relative VPH z-score with small-account correction |
-| A-2 | `red_ocean_multiplier` | multiplier | `1 + min(saturation * weight, cap - 1)` |
+| A-1 | `z_vph` | `(score, corrections)` | account-relative VPH z-score; 소형 계정 log1p 감쇠는 `[0.8·thr, 1.2·thr]` 구간 smoothstep 블렌딩(경계 불연속 제거) |
+| A-2 | `red_ocean_multiplier` | multiplier | `1 + min(saturation * weight, cap - 1)` — saturation은 [0,1]로 클램프 |
 | A-3 | `final_score_v1` | numeric score | `z * multiplier * scale + base` |
 | B-4a | `engagement_rate` | ratio | `(likes + replies) / views` |
 | C-1a | `like_ratio` | ratio | `likes / views` |
@@ -49,7 +49,7 @@ Threads version:
 
 | ID | Formula | Output | Definition |
 |---|---|---|---|
-| CH-1 | `account_momentum` | multiplier | `(views_30d / views_prev_30d) * (followers_30d / followers_prev_30d)` |
+| CH-1 | `account_momentum` | multiplier 또는 `None` | `(views_30d / views_prev_30d) * (followers_30d / followers_prev_30d)` — 이전 기간이 비면 `None`(계산 불능, 신규 계정) |
 | CH-2 | `views_per_follower` | ratio | `avg_views_90d / total_followers` |
 | CH-3 | `outlier_ratio` | multiplier | `post_views / account_avg_views` |
 | CH-4 | `content_efficiency` | views/post | `views_30d / posts_30d` |
@@ -84,7 +84,7 @@ Normalization helpers are included in `sotda.formulas`.
 | T-5 | `threads_satisfaction` | 0-100 score | weighted composite of reply, repost, quote, and follower-gain rates |
 | T-6 | `media_type_branch` | `(high, low)` thresholds | threshold pair by media type |
 | T-7 | `share_rate` | ratio | `shares / views` |
-| T-8 | `quote_to_reply_ratio` | ratio | `quotes / replies` |
+| T-8 | `quote_to_reply_ratio` | ratio | `quotes / replies` — replies=0 & quotes>0이면 `min(quotes, 100)` (논쟁 최대, winsorized 상한) |
 | T-9 | `link_attachment_penalty` | multiplier | `0.7` if an external link exists, else `1.0` |
 
 ### `threads_satisfaction` weights
@@ -134,13 +134,13 @@ These YouTube-style formulas are intentionally not implemented for Threads becau
 
 ### Alert levels
 
-| Modified z-score | Label | Suggested action |
-|---:|---|---|
-| `> 5.0` | Viral | immediate review |
-| `> 3.5` | Surge | alert |
-| `> 3.0` | Trending | watch closely |
-| `> 2.0` | Watch | monitor |
-| otherwise | None | no alert |
+| Modified z-score | growth_7d (OR 조건) | Label | Suggested action |
+|---:|---:|---|---|
+| `> 5.0` | — (z로만 도달 가능) | Viral | immediate review |
+| `> 3.5` | `> 2.0` | Surge | alert |
+| `> 3.0` | `> 1.0` | Trending | watch closely |
+| `> 2.0` | `> 0.5` | Watch | monitor |
+| otherwise | otherwise | None | no alert |
 
 ### Display rules
 
