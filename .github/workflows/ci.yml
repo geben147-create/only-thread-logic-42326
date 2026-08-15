@@ -74,18 +74,33 @@ jobs:
       - name: Check Markdown for mojibake markers
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
 
-          suspicious = ["\ufffd", "??", "\uc9e0", "\uc9f9", "\uc9f8"]
+          # Match what corruption actually looks like, not individual Hangul
+          # syllables. The previous list flagged three ordinary Korean syllables
+          # used in counting ("second", "first"), so every real doc failed.
+          checks = [
+              ("U+FFFD replacement char", re.compile("\ufffd")),
+              # UTF-8 read as Latin-1: a lead byte lands in C0-FF followed by a
+              # continuation byte in 80-BF. Ordinary accented text never matches.
+              ("Latin-1 mojibake", re.compile(r"[\u00c0-\u00ff][\u0080-\u00bf]")),
+              # C1 control characters never belong in a Markdown document.
+              ("C1 control char", re.compile(r"[\u0080-\u009f]")),
+              # Classic CP949 mojibake signature.
+              ("CP949 mojibake sequence", re.compile("\u5360\uc3d9\uc619")),
+          ]
           failures = []
 
           for path in Path(".").rglob("*.md"):
               if ".git" in path.parts:
                   continue
               text = path.read_text(encoding="utf-8")
-              for marker in suspicious:
-                  if marker in text:
-                      failures.append(f"{path}: contains {marker!r}")
+              for label, pattern in checks:
+                  match = pattern.search(text)
+                  if match:
+                      line = text[: match.start()].count("\n") + 1
+                      failures.append(f"{path}:{line}: {label} -> {match.group()!r}")
 
           if failures:
               print("\n".join(failures))
